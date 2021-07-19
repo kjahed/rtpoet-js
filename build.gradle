@@ -1,0 +1,93 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'org.jetbrains.kotlin.jvm' version '1.4.31'
+}
+
+group 'ca.jahed.rtpoet'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/kjahed/rtpoet")
+        credentials {
+            username = project.findProperty("gpr.user") ?: System.getenv("GH_USER")
+            password = project.findProperty("gpr.key") ?: System.getenv("GH_TOKEN")
+        }
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation "net.lingala.zip4j:zip4j:2.7.0"
+
+    compile group: 'ca.jahed.rtpoet', name: 'rtpoet', version: '1.0-SNAPSHOT'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+publishing {
+    repositories {
+        mavenLocal()
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/kjahed/rtpoet")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("GH_USER")
+                password = project.findProperty("gpr.key") ?: System.getenv("GH_TOKEN")
+            }
+        }
+    }
+
+    publications {
+        mvn(MavenPublication) {
+            from components.java
+            artifactId = rootProject.name
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
+            }
+            pom {
+                name = 'RTPoet Javascript Extension'
+                description = 'Javascript Code Generator for RTPoet Models'
+                url = 'https://github.com/kjahed/rtpoet-js'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'kjahed'
+                        name = 'Karim Jahed'
+                        email = 'jahed@cs.queensu.ca'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/kjahed/rtpoet-js.git'
+                    developerConnection = 'scm:git:ssh://github.com/kjahed/rtpoet-js.git'
+                    url = 'https://github.com/kjahed/rtpoet-js/'
+                }
+            }
+        }
+    }
+}
+
+
+test {
+    useJUnitPlatform()
+}

@@ -768,10 +768,12 @@ class RTJavaScriptCodeGenerator private constructor(
                 }
     
                 send(signal) {
+                    let result = true;
                     for (let i = 0; i < this.replication; i++) {
                         if(this.farEnds[i])
-                            this.sendAt(signal, i);
+			                result &= this.sendAt(signal, i);
                     }
+                    return result;
                 }
     
                 sendAt(signal, index) {
@@ -781,6 +783,7 @@ class RTJavaScriptCodeGenerator private constructor(
                     }
     
                     this.capsule.deliver(signal.toMessage(this.farEnds[index], this.capsule.index));
+                    return true;
                 }
     
                 sendToSelf(signal) {
@@ -790,6 +793,7 @@ class RTJavaScriptCodeGenerator private constructor(
                         index: this.capsule.index,
                         port: this.name
                     }, this.capsule.index));
+                    return true;
                 }
     
                 defer(message) {

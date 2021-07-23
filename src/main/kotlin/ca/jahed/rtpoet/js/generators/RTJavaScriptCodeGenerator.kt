@@ -22,6 +22,10 @@ class RTJavaScriptCodeGenerator private constructor(
     var debug: Boolean = false
 ) {
 
+    init {
+        currentDir.mkdirs()
+    }
+
     private val slots: List<RTSlot> = RTModelFlattener.flatten(model)
     private val portConnectionsMap = mutableMapOf<Pair<RTCapsulePart, RTPort>, MutableSet<RTConnection>>()
 
@@ -29,7 +33,7 @@ class RTJavaScriptCodeGenerator private constructor(
     private val outgoingTransitions = mutableMapOf<RTGenericState, MutableList<RTTransition>>()
 
     private var expressPort = 3000
-    private var smInspectorPort = 8888
+    private var smInspectorPort = 8801
 
     companion object {
         @JvmStatic
@@ -39,7 +43,7 @@ class RTJavaScriptCodeGenerator private constructor(
 
         @JvmStatic
         fun generate(model: RTModel, outputDir: File, debug: Boolean = false): Boolean {
-            return RTJavaScriptCodeGenerator(model, outputDir, debug).doGenerate()
+            return RTJavaScriptCodeGenerator(model, File(outputDir, "${model.name}.js"), debug).doGenerate()
         }
     }
 
@@ -134,6 +138,7 @@ class RTJavaScriptCodeGenerator private constructor(
               	},
                 "scripts": {
                     "preinstall": "npm --prefix ./rtpoet-rts install",
+                    "prestart": "node inspector.js",
                     "start": "node index.js",
             		"node": "./node_modules/.bin/comedy-node"
                 }
@@ -145,7 +150,7 @@ class RTJavaScriptCodeGenerator private constructor(
                 ${slots.joinToString(",\n") { """
                     "${it.name}" : {
                         "mode": ${if(debug) """ "in-memory", """ else """ "forked" """}
-                        ${if(debug) """ "debug": false """ else ""}
+                        ${if(debug) """ "debug": true """ else ""}
                     }
                 """.trimIndent() }}
             }
@@ -156,7 +161,7 @@ class RTJavaScriptCodeGenerator private constructor(
             const Port = require('rtpoet-rts/Port');
             const ${slots.first().part.capsule.name} = require('./${slots.first().part.capsule.name}');
             ${if(debug) """
-            const open = require('open');
+            const inspector = require('./inspector');
             const express = require('express');
             const app = express();
             """.trimIndent() else ""}
@@ -178,12 +183,47 @@ class RTJavaScriptCodeGenerator private constructor(
                 
            ${if(debug) """
             app.use(express.static(__dirname + '/inspector'));
-            app.listen(${expressPort});
-            
-            open("http://localhost:${expressPort}/inspector.html?server=localhost:${smInspectorPort}");
-            console.log("Inspector: http://localhost:${expressPort}/inspector.html?server=localhost:${smInspectorPort}");
+            app.listen(inspector.httpPort);
             """.trimIndent() else ""}
         """.trimIndent().write("index.js")
+
+        if(debug) {
+            """
+            {
+              "host": "localhost",
+              "httpPort": ${expressPort},
+              "debugPort": ${smInspectorPort}
+            }
+            """.trimIndent().write("inspector.json")
+
+            """
+            const fs = require('fs');
+            const open = require('open');
+            
+            let config = JSON.parse(fs.readFileSync('inspector.json'));
+                        
+            let baseInspectorUrl = "http://" + config.host + ":" + config.httpPort + "/inspector.html";
+            let inspectorServerUrl = config.host + ":" + config.debugPort;
+            let localUrl = baseInspectorUrl + "?server=" + inspectorServerUrl;
+            
+            if(process.env.JUPYTERHUB_DOMAIN && process.env.JUPYTERHUB_SERVICE_PREFIX) {
+                baseInspectorUrl = "http://" + process.env.JUPYTERHUB_DOMAIN + process.env.JUPYTERHUB_SERVICE_PREFIX +  "proxy/" + config.httpPort + "/inspector.html";
+                inspectorServerUrl = process.env.JUPYTERHUB_DOMAIN + process.env.JUPYTERHUB_SERVICE_PREFIX + "proxy/" + config.debugPort;
+            }
+           
+            config.url = baseInspectorUrl + "?server=" + inspectorServerUrl;           
+            console.log("Inspector: "+ config.url);
+            open(config.url);
+
+            fs.writeFileSync("inspector.html", '<head> <meta http-equiv="refresh" content="1; URL=' + localUrl + '" /></head><body><a href="' + localUrl + '">Redirecting...</a></body>');
+            
+            module.exports = {
+                url: config.url,
+                httpPort: config.httpPort,
+                debugPort: config.debugPort
+            };
+            """.trimIndent().write("inspector.js")
+        }
 
         generatePackage(model)
     }
@@ -234,6 +274,7 @@ class RTJavaScriptCodeGenerator private constructor(
             ${if(debug && slots.first().part.capsule.name == capsule.name) """
             const { inspect } = require("@xstate/inspect/lib/server");
             const WebSocket = require("ws");            
+            const inspector = require("./inspector.js");
             """.trimIndent() else ""}
 
             ${capsule.attributes.map{ it.type }.filterIsInstance<RTSystemClass>().toSet().joinToString("\n") { """
@@ -266,7 +307,7 @@ class RTJavaScriptCodeGenerator private constructor(
             	constructor() {
             		super();
                     ${if(debug && slots.first().part.capsule.name == capsule.name) """
-                    inspect({server: new WebSocket.Server({port: $smInspectorPort})})
+                    inspect({server: new WebSocket.Server({port: inspector.debugPort})})
                     """.trimIndent() else ""}
                     
             		this.context = {

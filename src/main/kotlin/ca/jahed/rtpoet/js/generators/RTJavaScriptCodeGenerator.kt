@@ -138,7 +138,7 @@ class RTJavaScriptCodeGenerator private constructor(
               	},
                 "scripts": {
                     "preinstall": "npm --prefix ./rtpoet-rts install",
-                    "prestart": "node inspector.js",
+                    ${if(debug) """"prestart": "node inspector.js",""" else "" }
                     "start": "node index.js",
             		"node": "./node_modules/.bin/comedy-node"
                 }

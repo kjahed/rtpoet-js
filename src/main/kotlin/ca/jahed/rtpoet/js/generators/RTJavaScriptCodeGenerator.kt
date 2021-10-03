@@ -24,6 +24,9 @@ class RTJavaScriptCodeGenerator private constructor(
 
     init {
         currentDir.mkdirs()
+
+        if(!currentDir.exists())
+            throw RuntimeException("Error create output directory ${currentDir.absolutePath}")
     }
 
     private val slots: List<RTSlot> = RTModelFlattener.flatten(model)
@@ -43,7 +46,7 @@ class RTJavaScriptCodeGenerator private constructor(
 
         @JvmStatic
         fun generate(model: RTModel, outputDir: File, debug: Boolean = false): Boolean {
-            return RTJavaScriptCodeGenerator(model, File(outputDir, "${model.name}.js"), debug).doGenerate()
+            return RTJavaScriptCodeGenerator(model, outputDir, debug).doGenerate()
         }
     }
 
@@ -226,6 +229,7 @@ class RTJavaScriptCodeGenerator private constructor(
         }
 
         generatePackage(model)
+        model.imports.forEach { generatePackage(it) }
     }
 
     private fun generateRoutingTable(slots: List<RTSlot>) {
@@ -254,13 +258,13 @@ class RTJavaScriptCodeGenerator private constructor(
     }
 
     private fun generatePackage(pkg: RTPackage) {
-        if(pkg !is RTModel) enterDir(pkg.name)
+//        if(pkg !is RTModel) enterDir(pkg.name)
         pkg.packages.forEach { generatePackage(it) }
         pkg.protocols.forEach { generateProtocol(it) }
         pkg.classes.forEach { generateClass(it) }
         pkg.enumerations.forEach { generateEnumeration(it) }
         pkg.capsules.forEach { generateCapsule(it) }
-        if(pkg !is RTModel) leaveDir()
+//        if(pkg !is RTModel) leaveDir()
     }
 
     private fun generateCapsule(capsule: RTCapsule) {
